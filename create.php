@@ -71,20 +71,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $user->favorite_color = $_POST['favorite_color'] ?? null;
 
         // Handle file upload for profile picture
-        if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == UPLOAD_ERR_OK) {
-            $upload_dir = 'uploads/';
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
-            }
-            $filename = uniqid() . '_' . basename($_FILES['profile_picture']['name']);
+        // Handle multiple file uploads for profile pictures
+if (isset($_FILES['profile_pictures'])) {
+    $profile_pictures = [];
+    $upload_dir = 'uploads/';
+    
+    if (!is_dir($upload_dir)) {
+        mkdir($upload_dir, 0755, true);
+    }
+    
+    foreach ($_FILES['profile_pictures']['tmp_name'] as $key => $tmp_name) {
+        if ($_FILES['profile_pictures']['error'][$key] == UPLOAD_ERR_OK) {
+            $filename = uniqid() . '_' . basename($_FILES['profile_pictures']['name'][$key]);
             $upload_path = $upload_dir . $filename;
             
-            if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $upload_path)) {
-                $user->profile_picture = $upload_path;
+            if (move_uploaded_file($tmp_name, $upload_path)) {
+                $profile_pictures[] = $upload_path;
             } else {
-                $errors[] = "Failed to upload profile picture";
+                $errors[] = "Failed to upload profile picture: " . $_FILES['profile_pictures']['name'][$key];
             }
         }
+    }
+    
+    if (!empty($profile_pictures)) {
+        $user->profile_photos = $profile_pictures; // Assuming your database field is profile_photos
+    }
+}
+
+// Handle about_me field
+$user->about_me = $_POST['about_me'] ?? '';
 
         if ($user->create()) {
             header("Location: login.php"); // Redirect to login page
@@ -112,6 +127,68 @@ $skills = [
 <head>
     <meta charset="UTF-8">
     <title>User Registration</title>
+    <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const imageInput = document.getElementById('imageInput');
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    
+    // Store File objects for form submission
+    let selectedFiles = new DataTransfer();
+    
+    imageInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        
+        for (let file of files) {
+            // Only process image files
+            if (!file.type.startsWith('image/')) continue;
+            
+            // Add to FileList
+            selectedFiles.items.add(file);
+            
+            // Create preview elements
+            const wrapper = document.createElement('div');
+            wrapper.className = 'image-preview-wrapper';
+            
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+            
+            // Create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-image';
+            removeBtn.innerHTML = '×';
+            
+            // Read and display image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            
+            // Handle remove button click
+            removeBtn.addEventListener('click', function() {
+                wrapper.remove();
+                
+                // Remove file from FileList
+                const newFileList = new DataTransfer();
+                for (let i = 0; i < selectedFiles.files.length; i++) {
+                    if (selectedFiles.files[i] !== file) {
+                        newFileList.items.add(selectedFiles.files[i]);
+                    }
+                }
+                selectedFiles = newFileList;
+                imageInput.files = selectedFiles.files;
+            });
+            
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            previewContainer.appendChild(wrapper);
+        }
+        
+        // Update input's FileList
+        imageInput.files = selectedFiles.files;
+    });
+});
+</script>
     <style>
     :root {
         --primary-color: #4a90e2;
@@ -250,6 +327,43 @@ $skills = [
         margin-right: 8px;
         accent-color: var(--primary-color);
     }
+
+    .image-preview-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.image-preview-wrapper {
+    position: relative;
+    width: 150px;
+    height: 150px;
+}
+
+.image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.remove-image {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: red;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    border: none;
+}
 </style>
 </head>
 <body>
@@ -310,8 +424,10 @@ $skills = [
             </div>
             
             <div class="form-group">
-                <label>Profile Picture</label>
-                <input type="file" name="profile_picture" accept="image/*">
+                <label>Profile Pictures (Multiple)</label>
+                <input type="file" name="profile_pictures[]" accept="image/*" multiple id="imageInput">
+                <div id="imagePreviewContainer" class="image-preview-container"></div>
+                    <small>Maximum file size: 5MB. Allowed types: JPG, PNG, GIF</small>
             </div>
             
             <div class="form-group">
@@ -339,6 +455,15 @@ $skills = [
                     <label><input type="checkbox" name="interests[]" value="Reading"> Reading</label>
                     <label><input type="checkbox" name="interests[]" value="Travel"> Travel</label>
                 </div>
+            </div>
+
+            <div class="form-group">
+                <label>About Me</label>
+                <textarea name="about_me" id="about_me"></textarea>
+                <script src="https://cdn.ckeditor.com/4.16.2/standard/ckeditor.js"></script>
+                <script>
+                    CKEDITOR.replace('about_me');
+                </script>
             </div>
             
             <div class="form-group">

@@ -23,10 +23,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     if (empty($errors)) {
-        if ($user->authenticate($email, $password)) {
-            $_SESSION['user_email'] = $email;
-            header("Location: dashboard.php");
-            exit();
+        $auth_result = $user->authenticate($email, $password);
+        
+        if ($auth_result['success']) {
+            // Check if user is active
+            if (!($auth_result['is_active'] == 't')) {
+                $errors[] = "Your account is currently inactive. Please contact support.";
+            } else {
+                $_SESSION['user_email'] = $email;
+                $_SESSION['user_role'] = $auth_result['role'];
+                $_SESSION['user_id'] = $auth_result['id'];
+                
+                // Redirect based on role
+                if ($auth_result['role'] === 'admin') {
+                    header("Location: index.php");
+                } else {
+                    header("Location: dashboard.php");
+                }
+                exit();
+            }
         } else {
             $errors[] = "Invalid email or password";
         }
@@ -141,7 +156,7 @@ body {
     color: var(--primary-color);
     text-decoration: none;
 }
-        </style>
+    </style>
 </head>
 <body>
     <div class="login-container">

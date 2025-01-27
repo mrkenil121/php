@@ -6,19 +6,39 @@ $database = new Database();
 $db = $database->conn;
 $user = new User($db);
 
-// Handle delete request
-if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id'])) {
-    $deleteId = intval($_GET['id']);
-    if ($user->delete($deleteId)) {
-        header("Location: index.php?success=deleted");
-        exit();
-    } else {
-        header("Location: index.php?error=delete_failed");
-        exit();
-    }
+session_start();
+
+// Enhanced admin check - verify both login status and admin role
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+    header("Location: login.php?error=unauthorized");
+    exit();
 }
 
+// Handle AJAX request for status toggle
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['id']) && isset($_POST['status'])) {
+    header('Content-Type: application/json');
+    
+    $id = $_POST['id'];
+    $status = $_POST['status'] === 'true';
+    
+    try {
+        if ($user->updateStatus($id, $status)) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to update user status']);
+        }
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'message' => 'Error occurred while updating status']);
+    }
+    exit();
+}
+
+// Fetch users with error handling
 $result = $user->read();
+if (!$result) {
+    // Handle database error
+    $error_message = "Failed to fetch users";
+}
 ?>
 
 <!DOCTYPE html>
@@ -136,22 +156,66 @@ $result = $user->read();
         .create-btn:hover {
             background-color: #3a7bd5;
         }
+
+        .status-active {
+            background-color: #4CAF50;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        
+        .status-inactive {
+            background-color: #f44336;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+
+        select.status-select {
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            background-color: white;
+            cursor: pointer;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
         <h2>User List</h2>
 
-        <?php if (isset($_GET['success']) && $_GET['success'] == 'deleted'): ?>
-            <div class="message success-message">User successfully deleted.</div>
+        <?php if (isset($_GET['success'])): ?>
+            <div class="message success-message">
+                <?php
+                switch($_GET['success']) {
+                    case 'deleted':
+                        echo 'User successfully deleted.';
+                        break;
+                    case 'status_updated':
+                        echo 'User status successfully updated.';
+                        break;
+                    case '1':
+                        echo 'User successfully updated.';
+                        break;
+                }
+                ?>
+            </div>
         <?php endif; ?>
 
-        <?php if (isset($_GET['error']) && $_GET['error'] == 'delete_failed'): ?>
-            <div class="message error-message">Failed to delete user.</div>
-        <?php endif; ?>
-
-        <?php if (isset($_GET['success']) && $_GET['success'] == 1): ?>
-            <div class="message success-message">User successfully updated.</div>
+        <?php if (isset($_GET['error'])): ?>
+            <div class="message error-message">
+                <?php
+                switch($_GET['error']) {
+                    case 'delete_failed':
+                        echo 'Failed to delete user.';
+                        break;
+                    case 'status_update_failed':
+                        echo 'Failed to update user status.';
+                        break;
+                }
+                ?>
+            </div>
         <?php endif; ?>
 
         <table>
@@ -171,9 +235,9 @@ $result = $user->read();
             <tbody>
                 <?php 
                 while($row = pg_fetch_assoc($result)): 
-                    // Handle interests and skills
                     $interests = !empty($row['interests']) ? explode(',', $row['interests']) : [];
                     $skills = !empty($row['skills']) ? explode(',', $row['skills']) : [];
+                    $isActive = $row['is_active'] === 't';
                 ?>
                 <tr>
                     <td><?php echo htmlspecialchars($row['id']); ?></td>
@@ -186,9 +250,11 @@ $result = $user->read();
                     <td><?php echo !empty($skills) ? htmlspecialchars(implode(', ', $skills)) : 'None'; ?></td>
                     <td class="actions">
                         <a href="edit.php?id=<?php echo $row['id']; ?>" class="edit">Edit</a>
-                        <a href="index.php?action=delete&id=<?php echo $row['id']; ?>" 
-                           class="delete"
-                           onclick="return confirm('Are you sure you want to delete this user?');">Delete</a>
+                        <a href="#" 
+                           onclick="event.preventDefault(); toggleUserStatus(<?php echo $row['id']; ?>, <?php echo $isActive ? 'true' : 'false'; ?>);" 
+                           class="delete">
+                            <?php echo $isActive ? 'Deactivate' : 'Activate'; ?>
+                        </a>
                     </td>
                 </tr>
                 <?php endwhile; ?>
@@ -196,5 +262,59 @@ $result = $user->read();
         </table>
         <a href="create.php" class="create-btn">Create New User</a>
     </div>
+
+    <!-- JavaScript -->
+    <script>
+        function toggleUserStatus(id, currentStatus) {
+    const newStatus = !currentStatus;
+    const button = event.target;
+
+    // Disable the button during the request
+    button.disabled = true;
+
+    // Prepare data for the request
+    const formData = new FormData();
+    formData.append('id', id);
+    formData.append('status', newStatus);
+
+    // Make an AJAX request using Fetch API
+    fetch('index.php', {
+        method: 'POST',
+        body: formData,
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update button text
+                button.textContent = newStatus ? 'Deactivate' : 'Activate';
+
+                // Show success message
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message success-message';
+                messageDiv.textContent = 'User status updated successfully';
+                document.querySelector('.container').insertBefore(messageDiv, document.querySelector('table'));
+
+                // Remove message after 3 seconds
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Failed to update status');
+            }
+        })
+        .catch(error => {
+            let errorMessage = 'Error updating status';
+            if (error.message) {
+                errorMessage += `: ${error.message}`;
+            }
+            alert(errorMessage);
+        })
+        .finally(() => {
+            // Re-enable the button
+            button.disabled = false;
+        });
+}
+    
+</script>
 </body>
 </html>

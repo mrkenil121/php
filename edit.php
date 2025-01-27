@@ -6,7 +6,7 @@ $database = new Database();
 $db = $database->conn;
 $user = new User($db);
 
-// Check if ID is provided
+// Check if ID is provided 
 if (!isset($_GET['id'])) {
     die("No user ID provided.");
 }
@@ -23,6 +23,10 @@ if (!$userData) {
 // Normalize interests and skills
 $userData['interests'] = str_replace(['{', '}'], '', $userData['interests'] ?? '');
 $userData['skills'] = str_replace(['{', '}'], '', $userData['skills'] ?? '');
+
+// var_dump($userData['profile_photos']);
+// $userData['profile_photos'] = !empty($userData['profile_photos']) ? array_filter(explode(',', trim($userData['profile_photos'], '{}'))) : [];
+// $userData['deleted_profile_pictures'] = !empty($userData['deleted_profile_pictures']) ? array_filter(explode(',', trim($userData['deleted_profile_pictures'], '{}'))) : [];
 
 // Convert to arrays
 $userData['interests'] = !empty($userData['interests']) ? explode(',', $userData['interests']) : [];
@@ -42,16 +46,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user->name = trim($_POST['name']);
     $user->email = trim($_POST['email']);
     $user->phone = trim($_POST['phone']);
+    $user->id = $id;
+    $user->name = trim($_POST['name']);
+    $user->email = trim($_POST['email']);
+    $user->phone = trim($_POST['phone']);
     $user->birthdate = $_POST['birthdate'];
     $user->age = $user->calculateAge($user->birthdate);
     $user->gender = $_POST['gender'];
     $user->interests = isset($_POST['interests']) ? $_POST['interests'] : [];
     $user->favorite_color = $_POST['favorite_color'];
-    
-    // New fields
     $user->blood_group = $_POST['blood_group'];
     $user->address = trim($_POST['address']);
     $user->skills = isset($_POST['skills']) ? $_POST['skills'] : [];
+    $user->about_me = $_POST['about_me'];
 
     // Validation checks
     $errors = [];
@@ -62,30 +69,72 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!$user->validateBloodGroup($user->blood_group)) $errors[] = "Invalid blood group";
     if (!$user->validateAddress($user->address)) $errors[] = "Invalid address (10-255 characters)";
     if (!$user->validateSkills($user->skills)) $errors[] = "Invalid skills selected";
+    if (!$user->validateAboutMe($user->about_me)) $errors[] = "Invalid about me section";
+
+    // Handle deleted images
+    if (isset($_POST['delete_images']) && is_array($_POST['delete_images'])) {
+        foreach ($_POST['delete_images'] as $image_path) {
+            if (in_array($image_path, $userData['profile_photos'])) {
+                // Remove from profile_photos and add to deleted_profile_pictures
+                $userData['deleted_profile_pictures'][] = $image_path;
+                $key = array_search($image_path, $userData['profile_photos']);
+                if ($key !== false) {
+                    unset($userData['profile_photos'][$key]);
+                }
+            }
+        }
+    }
 
     // Handle profile picture upload
-    if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == UPLOAD_ERR_OK) {
+    if (isset($_FILES['profile_pictures'])) {
         $upload_dir = 'uploads/';
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0755, true);
         }
-        
-        $filename = uniqid() . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", basename($_FILES['profile_picture']['name']));
-        $upload_path = $upload_dir . $filename;
-        $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
-        
-        if (in_array($_FILES['profile_picture']['type'], $allowed_types)) {
-            if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $upload_path)) {
-                $user->profile_picture = $upload_path;
-            } else {
-                $errors[] = "Failed to upload profile picture";
+
+        foreach ($_FILES['profile_pictures']['tmp_name'] as $key => $tmp_name) {
+            if ($_FILES['profile_pictures']['error'][$key] == UPLOAD_ERR_OK) {
+                $filename = uniqid() . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", basename($_FILES['profile_pictures']['name'][$key]));
+                $upload_path = $upload_dir . $filename;
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
+                
+                if (in_array($_FILES['profile_pictures']['type'][$key], $allowed_types)) {
+                    if (move_uploaded_file($tmp_name, $upload_path)) {
+                        $userData['profile_photos'][] = $upload_path;
+                    } else {
+                        $errors[] = "Failed to upload: " . $_FILES['profile_pictures']['name'][$key];
+                    }
+                } else {
+                    $errors[] = "Invalid file type: " . $_FILES['profile_pictures']['name'][$key];
+                }
             }
-        } else {
-            $errors[] = "Invalid file type. Only JPG, PNG, and GIF are allowed.";
         }
-    } else {
-        $user->profile_picture = $userData['profile_picture'];
+        $user->profile_photos = array_values($userData['profile_photos']);
+        $user->deleted_profile_pictures = array_values($userData['deleted_profile_pictures']);
     }
+
+    if (isset($_POST['delete_images']) && is_array($_POST['delete_images'])) {
+        foreach ($_POST['delete_images'] as $image_path) {
+            if (in_array($image_path, $userData['profile_photos'])) {
+                // Remove from profile_photos array
+                $key = array_search($image_path, $userData['profile_photos']);
+                if ($key !== false) {
+                    unset($userData['profile_photos'][$key]);
+                    // Add to deleted_profile_pictures array
+                    if (!in_array($image_path, $userData['deleted_profile_pictures'])) {
+                        $userData['deleted_profile_pictures'][] = $image_path;
+                    }
+                }
+            }
+        }
+        $user->profile_photos = array_values($userData['profile_photos']);
+        $user->deleted_profile_pictures = array_values($userData['deleted_profile_pictures']);
+    }
+
+
+    $user->profile_photos = $userData['profile_photos'];
+    $user->deleted_profile_pictures = is_array($userData['deleted_profile_pictures']) ? 
+        '{' . implode(',', $userData['deleted_profile_pictures']) . '}' : '{}';
 
     if (empty($errors)) {
         if ($user->update()) {
@@ -241,7 +290,124 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         margin-right: 8px;
         accent-color: var(--primary-color);
     }
+
+    .image-preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .image-preview-wrapper {
+            position: relative;
+            width: 150px;
+            height: 150px;
+        }
+
+        .image-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .remove-image {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: red;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            border: none;
+        }
 </style>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+    const imageInput = document.getElementById('imageInput');
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    
+    // Store File objects for form submission
+    let selectedFiles = new DataTransfer();
+    
+    imageInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        
+        for (let file of files) {
+            // Only process image files
+            if (!file.type.startsWith('image/')) continue;
+            
+            // Add to FileList
+            selectedFiles.items.add(file);
+            
+            // Create preview elements
+            const wrapper = document.createElement('div');
+            wrapper.className = 'image-preview-wrapper';
+            
+            const img = document.createElement('img');
+            img.className = 'image-preview';
+            
+            // Create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-image';
+            removeBtn.innerHTML = '×';
+            
+            // Read and display image
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+            
+            // Handle remove button click
+            removeBtn.addEventListener('click', function() {
+                wrapper.remove();
+                
+                // Remove file from FileList
+                const newFileList = new DataTransfer();
+                for (let i = 0; i < selectedFiles.files.length; i++) {
+                    if (selectedFiles.files[i] !== file) {
+                        newFileList.items.add(selectedFiles.files[i]);
+                    }
+                }
+                selectedFiles = newFileList;
+                imageInput.files = selectedFiles.files;
+            });
+            
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            previewContainer.appendChild(wrapper);
+        }
+        
+        // Update input's FileList
+        imageInput.files = selectedFiles.files;
+    });
+});
+
+function markImageForDeletion(button, imagePath) {
+    // Create hidden input for deleted image
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'delete_images[]';
+    input.value = imagePath;
+    
+    // Check if image exists in profile_photos array
+    const existingPhotoInput = button.previousElementSibling;
+    if (existingPhotoInput && existingPhotoInput.name === 'existing_photos[]') {
+        // Add to deleted images container
+        document.getElementById('deletedImagesContainer').appendChild(input);
+    }
+    
+    // Remove the preview
+    button.closest('.image-preview-wrapper').remove();
+}
+</script>
 </head>
 <body>
     <div class="registration-container">
@@ -344,13 +510,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
 
             <div class="form-group">
-                <label>Profile Picture</label>
-                <input type="file" name="profile_picture" accept="image/jpeg,image/png,image/gif">
-                <?php if (!empty($userData['profile_picture'])): ?>
-                    <img src="<?php echo htmlspecialchars($userData['profile_picture']); ?>" 
-                         alt="Profile Picture" width="100" height="100">
-                <?php endif; ?>
+    <label>Profile Pictures (Multiple)</label>
+    <input type="file" name="profile_pictures[]" accept="image/*" multiple id="imageInput">
+    <div id="imagePreviewContainer" class="image-preview-container">
+        <?php 
+        // Check if profile_photos is a string and convert it to array if needed
+        if (is_string($userData['profile_photos'])) {
+            $userData['profile_photos'] = array_filter(explode(',', trim($userData['profile_photos'], '{}')));
+        }
+        
+        if (!empty($userData['profile_photos'])):
+            foreach ($userData['profile_photos'] as $photo): 
+                if (!empty($photo)):
+        ?>
+            <div class="image-preview-wrapper">
+                <img src="<?php echo htmlspecialchars(trim($photo)); ?>" class="image-preview" alt="Profile Picture">
+                <input type="hidden" name="existing_photos[]" value="<?php echo htmlspecialchars(trim($photo)); ?>">
+                <button type="button" class="remove-image" onclick="markImageForDeletion(this, '<?php echo htmlspecialchars(trim($photo)); ?>')">×</button>
             </div>
+        <?php 
+                endif;
+            endforeach;
+        endif;
+        ?>
+    </div>
+</div>
+
+            <div class="form-group">
+                <label>About Me</label>
+                <textarea name="about_me" id="about_me"><?php echo htmlspecialchars($userData['about_me'] ?? ''); ?></textarea>
+                <script src="https://cdn.ckeditor.com/4.16.2/standard/ckeditor.js"></script>
+                <script>
+                    CKEDITOR.replace('about_me');
+                </script>
+            </div>
+
+            <div id="deletedImagesContainer"></div>
 
             <button type="submit" class="submit-btn">Update User</button>
         </form>

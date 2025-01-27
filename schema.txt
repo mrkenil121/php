@@ -1,0 +1,48 @@
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    birthdate DATE NOT NULL,
+    age INTEGER NOT NULL,
+    gender VARCHAR(10) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    
+    -- Role and status fields
+    role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+    is_active BOOLEAN DEFAULT true,
+    
+    -- Profile information
+    blood_group VARCHAR(3),
+    address TEXT,
+    interests TEXT,
+    skills TEXT,
+    
+    -- Profile photos
+    profile_photos TEXT[], -- Array to store multiple profile photo URLs
+    deleted_profile_pictures TEXT[], -- Array to store history of deleted profile picture paths
+    
+    -- Additional profile fields
+    favorite_color VARCHAR(7),
+    
+    -- Rich text content
+    about_me TEXT, -- For storing formatted text editor content
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Trigger for updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
