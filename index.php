@@ -179,10 +179,45 @@ if (!$result) {
             cursor: pointer;
         }
 
+        .nav-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .nav-btn {
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+
+        .dashboard-btn {
+            background-color: var(--primary-color);
+        }
+
+        .dashboard-btn:hover {
+            background-color: #3a7bd5;
+        }
+
+        .logout-btn {
+            background-color: #f44336;
+        }
+
+        .logout-btn:hover {
+            background-color: #d32f2f;
+        }
+
     </style>
 </head>
 <body>
     <div class="container">
+    <div class="nav-buttons">
+            <a href="dashboard.php" class="nav-btn dashboard-btn">Dashboard</a>
+            <a href="logout.php" class="nav-btn logout-btn">Logout</a>
+        </div>
         <h2>User List</h2>
 
         <?php if (isset($_GET['success'])): ?>
