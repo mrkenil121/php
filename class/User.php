@@ -230,11 +230,24 @@ class User {
     }
     
     public function updateStatus($id, $status) {
-        // echo $id;
+
         $query = "UPDATE {$this->table_name} SET is_active = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1";
     
         try {
             $result = pg_query_params($this->conn, $query, [$id, $status ? 't' : 'f']);
+            return $result ? true : false;
+        } catch (Exception $e) {
+            error_log("User status update error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function delete($id) {
+
+        $query = "UPDATE {$this->table_name} SET is_active = 'f', updated_at = CURRENT_TIMESTAMP WHERE id = $1";
+    
+        try {
+            $result = pg_query_params($this->conn, $query, [$id]);
             return $result ? true : false;
         } catch (Exception $e) {
             error_log("User status update error: " . $e->getMessage());

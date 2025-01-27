@@ -24,10 +24,6 @@ if (!$userData) {
 $userData['interests'] = str_replace(['{', '}'], '', $userData['interests'] ?? '');
 $userData['skills'] = str_replace(['{', '}'], '', $userData['skills'] ?? '');
 
-// var_dump($userData['profile_photos']);
-// $userData['profile_photos'] = !empty($userData['profile_photos']) ? array_filter(explode(',', trim($userData['profile_photos'], '{}'))) : [];
-// $userData['deleted_profile_pictures'] = !empty($userData['deleted_profile_pictures']) ? array_filter(explode(',', trim($userData['deleted_profile_pictures'], '{}'))) : [];
-
 // Convert to arrays
 $userData['interests'] = !empty($userData['interests']) ? explode(',', $userData['interests']) : [];
 $userData['skills'] = !empty($userData['skills']) ? explode(',', $userData['skills']) : [];

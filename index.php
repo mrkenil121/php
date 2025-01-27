@@ -298,7 +298,7 @@ if (!$result) {
         <a href="create.php" class="create-btn">Create New User</a>
     </div>
 
-    <!-- JavaScript -->
+    
     <script>
         function toggleUserStatus(id, currentStatus) {
     const newStatus = !currentStatus;
