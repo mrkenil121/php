@@ -21,7 +21,7 @@ $dashboard_user_id = null;
 if (isset($_GET['id']) && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
     // Admin viewing another user's dashboard
     $dashboard_user_id = $_GET['id'];
-    
+
     // Verify the user exists
     $check_user = $user->readById($dashboard_user_id);
     if (!$check_user) {
@@ -59,6 +59,7 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
 
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -82,7 +83,7 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
         .dashboard-container {
             background-color: white;
             border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             padding: 30px;
             max-width: 800px;
             margin: 0 auto;
@@ -112,12 +113,15 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
 
         .photo-gallery {
             display: flex;
-            flex-direction: row;  /* explicitly set horizontal direction */
-            flex-wrap: nowrap;    /* prevent wrapping to new lines */
+            flex-direction: row;
+            /* explicitly set horizontal direction */
+            flex-wrap: nowrap;
+            /* prevent wrapping to new lines */
             gap: 10px;
             margin-top: 15px;
-            padding-bottom: 10px; /* space for the scrollbar */
-}
+            padding-bottom: 10px;
+            /* space for the scrollbar */
+        }
 
         .gallery-photo {
             width: 80px;
@@ -183,7 +187,8 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
             gap: 15px;
         }
 
-        .skills, .interests {
+        .skills,
+        .interests {
             flex: 1;
             background-color: #f9f9f9;
             border: 1px solid var(--border-color);
@@ -245,13 +250,15 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
         }
     </style>
 </head>
+
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
             <div class="profile-photos-container">
                 <?php if (!empty($userData['profile_photos'])): ?>
-                    <img src="<?php echo htmlspecialchars($userData['profile_photos'][0]); ?>" alt="Profile Picture" class="profile-photo">
-                    
+                    <img src="<?php echo htmlspecialchars($userData['profile_photos'][0]); ?>" alt="Profile Picture"
+                        class="profile-photo">
+
                     <?php if (count($userData['profile_photos']) > 1): ?>
                         <div class="photo-gallery">
                             <?php foreach (array_slice($userData['profile_photos'], 1) as $photo): ?>
@@ -268,10 +275,10 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
         </div>
 
         <?php if (!empty($userData['about_me'])): ?>
-        <div class="about-me-section">
-            <h3>About Me</h3>
-            <div><?php echo $userData['about_me']; ?></div>
-        </div>
+            <div class="about-me-section">
+                <h3>About Me</h3>
+                <div><?php echo $userData['about_me']; ?></div>
+            </div>
         <?php endif; ?>
 
         <div class="user-details">
@@ -318,8 +325,10 @@ $isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
         <div class="action-buttons">
             <a href="logout.php" class="btn btn-primary">Logout</a>
             <a href="edit.php?id=<?php echo $userData['id']; ?>" class="btn btn-success">Edit Profile</a>
-            <a href="delete.php?id=<?php echo $userData['id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete your account?');">Delete Account</a>
+            <a href="delete.php?id=<?php echo $userData['id']; ?>" class="btn btn-danger"
+                onclick="return confirm('Are you sure you want to delete your account?');">Delete Account</a>
         </div>
     </div>
 </body>
+
 </html>

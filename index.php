@@ -10,17 +10,17 @@ session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search'])) {
     header('Content-Type: application/json');
-    
+
     $searchTerm = $_GET['search'];
     $result = $user->search($searchTerm);
-    
+
     if ($result) {
         $users = [];
         while ($row = pg_fetch_assoc($result)) {
             // Process arrays
             $interests = !empty($row['interests']) ? explode(',', $row['interests']) : [];
             $skills = !empty($row['skills']) ? explode(',', $row['skills']) : [];
-            
+
             $row['interests'] = $interests;
             $row['skills'] = $skills;
             $users[] = $row;
@@ -328,30 +328,30 @@ if (!$result) {
         }
 
         .search-container {
-    margin-bottom: 20px;
-    text-align: center;
-}
+            margin-bottom: 20px;
+            text-align: center;
+        }
 
-.search-input {
-    width: 300px;
-    padding: 10px;
-    border: 2px solid var(--primary-color);
-    border-radius: 4px;
-    font-size: 16px;
-    transition: all 0.3s ease;
-}
+        .search-input {
+            width: 300px;
+            padding: 10px;
+            border: 2px solid var(--primary-color);
+            border-radius: 4px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
 
-.search-input:focus {
-    outline: none;
-    box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
-    width: 320px;
-}
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+            width: 320px;
+        }
 
-.highlight {
-    background-color: #fff3cd;
-    padding: 2px;
-    border-radius: 2px;
-}
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 
@@ -362,8 +362,8 @@ if (!$result) {
             <a href="logout.php" class="nav-btn logout-btn">Logout</a>
         </div>
         <div class="search-container">
-    <input type="text" id="searchInput" placeholder="Search users..." class="search-input">
-</div>
+            <input type="text" id="searchInput" placeholder="Search users..." class="search-input">
+        </div>
         <h2>User List</h2>
 
         <span class="click-hint">Click on any row to view user's dashboard</span>
@@ -537,65 +537,65 @@ if (!$result) {
         }
 
         let searchTimeout;
-const searchInput = document.getElementById('searchInput');
+        const searchInput = document.getElementById('searchInput');
 
-searchInput.addEventListener('input', function(e) {
-    clearTimeout(searchTimeout);
-    
-    // Add loading indicator to input
-    this.style.backgroundColor = '#f8f9fa';
-    
-    searchTimeout = setTimeout(() => {
-        const searchTerm = e.target.value.trim();
-        
-        if (searchTerm.length > 0) {
-            fetchSearchResults(searchTerm);
-        } else {
-            // If search is empty, fetch all users
-            fetchSearchResults('');
+        searchInput.addEventListener('input', function (e) {
+            clearTimeout(searchTimeout);
+
+            // Add loading indicator to input
+            this.style.backgroundColor = '#f8f9fa';
+
+            searchTimeout = setTimeout(() => {
+                const searchTerm = e.target.value.trim();
+
+                if (searchTerm.length > 0) {
+                    fetchSearchResults(searchTerm);
+                } else {
+                    // If search is empty, fetch all users
+                    fetchSearchResults('');
+                }
+            }, 300); // Debounce for 300ms
+        });
+
+        function fetchSearchResults(searchTerm) {
+            $.ajax({
+                url: 'index.php',
+                type: 'GET',
+                data: { search: searchTerm },
+                dataType: 'json',
+                success: function (response) {
+                    if (response.success) {
+                        updateTable(response.users, searchTerm);
+                    } else {
+                        console.error('Search failed:', response.message);
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.error('Ajax error:', error);
+                },
+                complete: function () {
+                    // Remove loading indicator
+                    searchInput.style.backgroundColor = '';
+                }
+            });
         }
-    }, 300); // Debounce for 300ms
-});
 
-function fetchSearchResults(searchTerm) {
-    $.ajax({
-        url: 'index.php',
-        type: 'GET',
-        data: { search: searchTerm },
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                updateTable(response.users, searchTerm);
-            } else {
-                console.error('Search failed:', response.message);
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Ajax error:', error);
-        },
-        complete: function() {
-            // Remove loading indicator
-            searchInput.style.backgroundColor = '';
-        }
-    });
-}
+        function updateTable(users, searchTerm) {
+            const tbody = document.querySelector('tbody');
+            tbody.innerHTML = '';
 
-function updateTable(users, searchTerm) {
-    const tbody = document.querySelector('tbody');
-    tbody.innerHTML = '';
-    
-    users.forEach(user => {
-        const row = document.createElement('tr');
-        row.setAttribute('onclick', `redirectToDashboard(${user.id}, event)`);
-        
-        // Highlight matching text if there's a search term
-        const highlightText = (text, term) => {
-            if (!term) return text;
-            const regex = new RegExp(`(${term})`, 'gi');
-            return text.replace(regex, '<span class="highlight">$1</span>');
-        };
-        
-        row.innerHTML = `
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.setAttribute('onclick', `redirectToDashboard(${user.id}, event)`);
+
+                // Highlight matching text if there's a search term
+                const highlightText = (text, term) => {
+                    if (!term) return text;
+                    const regex = new RegExp(`(${term})`, 'gi');
+                    return text.replace(regex, '<span class="highlight">$1</span>');
+                };
+
+                row.innerHTML = `
             <td>${user.id}</td>
             <td>${highlightText(user.name, searchTerm)}</td>
             <td>${highlightText(user.email, searchTerm)}</td>
@@ -613,10 +613,10 @@ function updateTable(users, searchTerm) {
                 </a>
             </td>
         `;
-        
-        tbody.appendChild(row);
-    });
-}
+
+                tbody.appendChild(row);
+            });
+        }
     </script>
 </body>
 
