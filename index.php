@@ -210,15 +210,104 @@ if (!$result) {
             background-color: #d32f2f;
         }
 
+        tbody tr {
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: #edf2f7 !important;
+        }
+
+        .actions {
+            cursor: default;
+        }
+
+        /* Prevent row click when clicking on actions */
+        .actions a {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Add visual feedback for clickable rows */
+        tbody tr td:first-child::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: var(--primary-color);
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        tbody tr:hover td:first-child::before {
+            opacity: 1;
+        }
+
+        /* Style to indicate clickable rows */
+        .click-hint {
+            display: block;
+            text-align: center;
+            color: #666;
+            margin-bottom: 10px;
+            font-style: italic;
+        }
+
+        /* Status toggle button base styles */
+.status-toggle {
+    display: inline-block;
+    width: 100px;  /* Fixed width */
+    padding: 6px 0;  /* Vertical padding only since width is fixed */
+    text-align: center;
+    border-radius: 4px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+/* Deactivate button style (for active users) */
+.status-toggle-deactivate {
+    background-color: #dc3545;  /* Red color */
+    color: white;
+    border: 1px solid #dc3545;
+}
+
+.status-toggle-deactivate:hover {
+    background-color: #c82333;
+    border-color: #bd2130;
+}
+
+/* Activate button style (for inactive users) */
+.status-toggle-activate {
+    background-color: #28a745;  /* Green color */
+    color: white;
+    border: 1px solid #28a745;
+}
+
+.status-toggle-activate:hover {
+    background-color: #218838;
+    border-color: #1e7e34;
+}
+
+/* Disabled state */
+.status-toggle:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
     </style>
 </head>
 <body>
     <div class="container">
-    <div class="nav-buttons">
+        <div class="nav-buttons">
             <a href="dashboard.php" class="nav-btn dashboard-btn">Dashboard</a>
             <a href="logout.php" class="nav-btn logout-btn">Logout</a>
         </div>
         <h2>User List</h2>
+
+        <span class="click-hint">Click on any row to view user's dashboard</span>
 
         <?php if (isset($_GET['success'])): ?>
             <div class="message success-message">
@@ -274,7 +363,7 @@ if (!$result) {
                     $skills = !empty($row['skills']) ? explode(',', $row['skills']) : [];
                     $isActive = $row['is_active'] === 't';
                 ?>
-                <tr>
+                <tr onclick="redirectToDashboard(<?php echo $row['id']; ?>, event)">
                     <td><?php echo htmlspecialchars($row['id']); ?></td>
                     <td><?php echo htmlspecialchars($row['name']); ?></td>
                     <td><?php echo htmlspecialchars($row['email']); ?></td>
@@ -283,11 +372,11 @@ if (!$result) {
                     <td><?php echo htmlspecialchars($row['gender']); ?></td>
                     <td><?php echo !empty($interests) ? htmlspecialchars(implode(', ', $interests)) : 'None'; ?></td>
                     <td><?php echo !empty($skills) ? htmlspecialchars(implode(', ', $skills)) : 'None'; ?></td>
-                    <td class="actions">
+                    <td class="actions" onclick="event.stopPropagation();">
                         <a href="edit.php?id=<?php echo $row['id']; ?>" class="edit">Edit</a>
                         <a href="#" 
-                           onclick="event.preventDefault(); toggleUserStatus(<?php echo $row['id']; ?>, <?php echo $isActive ? 'true' : 'false'; ?>);" 
-                           class="delete">
+                            onclick="event.preventDefault(); toggleUserStatus(<?php echo $row['id']; ?>, <?php echo $isActive ? 'true' : 'false'; ?>);" 
+                            class="status-toggle <?php echo $isActive ? 'status-toggle-deactivate' : 'status-toggle-activate'; ?>">
                             <?php echo $isActive ? 'Deactivate' : 'Activate'; ?>
                         </a>
                     </td>
@@ -298,58 +387,95 @@ if (!$result) {
         <a href="create.php" class="create-btn">Create New User</a>
     </div>
 
-    
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        function toggleUserStatus(id, currentStatus) {
-    const newStatus = !currentStatus;
-    const button = event.target;
+    function redirectToDashboard(userId, event) {
+        // Check if the click was on an action button or its container
+        if (!event.target.closest('.actions')) {
+            window.location.href = `dashboard.php?id=${userId}`;
+        }
+    }
 
-    // Disable the button during the request
-    button.disabled = true;
+    function toggleUserStatus(id, currentStatus) {
+        const button = event.target;
+        const newStatus = !currentStatus;
 
-    // Prepare data for the request
-    const formData = new FormData();
-    formData.append('id', id);
-    formData.append('status', newStatus);
+        // Disable the button during the request
+        $(button).prop('disabled', true);
 
-    // Make an AJAX request using Fetch API
-    fetch('index.php', {
-        method: 'POST',
-        body: formData,
-    })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Update button text
-                button.textContent = newStatus ? 'Deactivate' : 'Activate';
+        // Prepare data for the request
+        const data = {
+            id: id,
+            status: newStatus
+        };
 
-                // Show success message
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'message success-message';
-                messageDiv.textContent = 'User status updated successfully';
-                document.querySelector('.container').insertBefore(messageDiv, document.querySelector('table'));
+        // Make AJAX request
+        $.ajax({
+            url: 'index.php',
+            type: 'POST',
+            data: data,
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    // Update button text
+                    $(button).text(newStatus ? 'Deactivate' : 'Activate');
+
+                    // Update button classes
+                    $(button).removeClass(newStatus ? 'status-toggle-activate' : 'status-toggle-deactivate')
+                            .addClass(newStatus ? 'status-toggle-deactivate' : 'status-toggle-activate');
+                    
+                    // Update the onclick handler
+                    $(button).off('click').on('click', function(e) {
+                        e.preventDefault();
+                        toggleUserStatus(id, newStatus);
+                    });
+
+                    // Remove existing message if any
+                    $('.message').remove();
+
+                    // Show success message
+                    const messageDiv = $('<div>', {
+                        class: 'message success-message',
+                        text: 'User status updated successfully'
+                    });
+                    
+                    $('.container').find('table').before(messageDiv);
+
+                    // Remove message after 3 seconds
+                    setTimeout(function() {
+                        messageDiv.fadeOut('slow', function() {
+                            $(this).remove();
+                        });
+                    }, 3000);
+                } else {
+                    throw new Error(response.message || 'Failed to update status');
+                }
+            },
+            error: function(xhr, status, error) {
+                // Remove existing message if any
+                $('.message').remove();
+
+                // Show error message
+                const messageDiv = $('<div>', {
+                    class: 'message error-message',
+                    text: error || 'Error updating status'
+                });
+                
+                $('.container').find('table').before(messageDiv);
 
                 // Remove message after 3 seconds
-                setTimeout(() => {
-                    messageDiv.remove();
+                setTimeout(function() {
+                    messageDiv.fadeOut('slow', function() {
+                        $(this).remove();
+                    });
                 }, 3000);
-            } else {
-                throw new Error(data.message || 'Failed to update status');
+            },
+            complete: function() {
+                // Re-enable the button
+                $(button).prop('disabled', false);
             }
-        })
-        .catch(error => {
-            let errorMessage = 'Error updating status';
-            if (error.message) {
-                errorMessage += `: ${error.message}`;
-            }
-            alert(errorMessage);
-        })
-        .finally(() => {
-            // Re-enable the button
-            button.disabled = false;
         });
-}
-    
-</script>
+    }
+    </script>
 </body>
 </html>

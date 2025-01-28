@@ -14,14 +14,36 @@ $database = new Database();
 $db = $database->conn;
 $user = new User($db);
 
-// Fetch user details
-$query = "SELECT id FROM users WHERE email = $1";
-$result = pg_query_params($db, $query, [$_SESSION['user_email']]);
-$userRow = pg_fetch_assoc($result);
+// Determine which user's dashboard to show
+$dashboard_user_id = null;
+
+// Check if an ID is provided in URL and the viewer is an admin
+if (isset($_GET['id']) && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+    // Admin viewing another user's dashboard
+    $dashboard_user_id = $_GET['id'];
+    
+    // Verify the user exists
+    $check_user = $user->readById($dashboard_user_id);
+    if (!$check_user) {
+        header("Location: index.php?error=invalid_user");
+        exit();
+    }
+} else {
+    // User viewing their own dashboard
+    $query = "SELECT id FROM users WHERE email = $1";
+    $result = pg_query_params($db, $query, [$_SESSION['user_email']]);
+    $userRow = pg_fetch_assoc($result);
+    if (!$userRow) {
+        header("Location: logout.php");
+        exit();
+    }
+    $dashboard_user_id = $userRow['id'];
+}
 
 // Use readById method to get full user details
-$userData = $user->readById($userRow['id']);
+$userData = $user->readById($dashboard_user_id);
 
+// Process the arrays from PostgreSQL format
 $userData['interests'] = str_replace(['{', '}'], '', $userData['interests'] ?? '');
 $userData['skills'] = str_replace(['{', '}'], '', $userData['skills'] ?? '');
 
@@ -29,7 +51,12 @@ $userData['skills'] = str_replace(['{', '}'], '', $userData['skills'] ?? '');
 $userData['interests'] = !empty($userData['interests']) ? explode(',', $userData['interests']) : [];
 $userData['skills'] = !empty($userData['skills']) ? explode(',', $userData['skills']) : [];
 
+// Add a flag to determine if the viewer is the profile owner or an admin
+$isProfileOwner = !isset($_GET['id']) || $dashboard_user_id == $_SESSION['user_id'];
+$isAdmin = isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin';
+
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -38,153 +65,214 @@ $userData['skills'] = !empty($userData['skills']) ? explode(',', $userData['skil
     <title>User Dashboard</title>
     <style>
         :root {
-    --primary-color: #4a90e2;
-    --secondary-color: #f4f4f4;
-    --text-color: #333;
-    --border-color: #ddd;
+            --primary-color: #4a90e2;
+            --secondary-color: #f4f4f4;
+            --text-color: #333;
+            --border-color: #ddd;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica Neue', sans-serif;
+            background-color: var(--secondary-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .dashboard-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .dashboard-header {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 15px;
+        }
+
+        .profile-photos-container {
+            width: 120px;
+            margin-right: 30px;
+        }
+
+        .profile-photo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .photo-gallery {
+            display: flex;
+            flex-direction: row;  /* explicitly set horizontal direction */
+            flex-wrap: nowrap;    /* prevent wrapping to new lines */
+            gap: 10px;
+            margin-top: 15px;
+            padding-bottom: 10px; /* space for the scrollbar */
 }
 
-body {
-    font-family: 'Arial', 'Helvetica Neue', sans-serif;
-    background-color: var(--secondary-color);
-    margin: 0;
-    padding: 20px;
-    line-height: 1.6;
-}
+        .gallery-photo {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid var(--border-color);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
 
-.dashboard-container {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    padding: 30px;
-    max-width: 800px;
-    margin: 0 auto;
-}
+        .gallery-photo:hover {
+            transform: scale(1.1);
+        }
 
-.dashboard-header {
-    display: flex;
-    align-items: center;
-    margin-bottom: 30px;
-    border-bottom: 2px solid var(--primary-color);
-    padding-bottom: 15px;
-}
+        .user-info {
+            flex-grow: 1;
+        }
 
-.profile-picture {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    margin-right: 30px;
-    border: 4px solid var(--primary-color);
-}
+        .dashboard-title {
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+        }
 
-.user-info {
-    flex-grow: 1;
-}
+        .about-me-section {
+            background-color: #f9f9f9;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+        }
 
-.dashboard-title {
-    color: var(--primary-color);
-    margin: 0 0 10px 0;
-}
+        .about-me-section h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
 
-.user-details {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-    margin-bottom: 20px;
-}
+        .user-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
 
-.detail-card {
-    background-color: #f9f9f9;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 15px;
-}
+        .detail-card {
+            background-color: #f9f9f9;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+        }
 
-.detail-card h4 {
-    margin: 0 0 10px 0;
-    color: var(--primary-color);
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 5px;
-}
+        .detail-card h4 {
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
 
-.skills-interests {
-    display: flex;
-    gap: 15px;
-}
+        .skills-interests {
+            display: flex;
+            gap: 15px;
+        }
 
-.skills, .interests {
-    flex: 1;
-    background-color: #f9f9f9;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 15px;
-}
+        .skills, .interests {
+            flex: 1;
+            background-color: #f9f9f9;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 15px;
+        }
 
-.badge {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 3px 8px;
-    border-radius: 12px;
-    margin-right: 5px;
-    margin-bottom: 5px;
-    display: inline-block;
-    font-size: 0.8em;
-}
+        .badge {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            display: inline-block;
+            font-size: 0.8em;
+        }
 
-.logout-btn {
-    display: block;
-    width: 200px;
-    margin: 20px auto;
-    padding: 10px;
-    background-color: var(--primary-color);
-    color: white;
-    text-align: center;
-    text-decoration: none;
-    border-radius: 4px;
-    transition: background-color 0.3s ease;
-}
+        .action-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
 
-.logout-btn:hover {
-    background-color: #3a7bd5;
-}
+        .btn {
+            padding: 10px 20px;
+            border-radius: 4px;
+            text-decoration: none;
+            color: white;
+            transition: background-color 0.3s ease;
+            width: 150px;
+            text-align: center;
+        }
 
-.edit-link {
-    display: inline-block;
-    padding: 8px 15px;
-    background-color: #4CAF50;
-    color: white;
-    text-decoration: none;
-    border-radius: 4px;
-    transition: background-color 0.3s ease;
-    margin: 5px;
-    font-size: 14px;
-}
+        .btn-primary {
+            background-color: var(--primary-color);
+        }
 
-.edit-link:hover {
-    background-color: #45a049;
-}
+        .btn-primary:hover {
+            background-color: #3a7bd5;
+        }
 
-.edit-link.delete {
-    background-color: #f44336;
-}
+        .btn-success {
+            background-color: #4CAF50;
+        }
 
-.edit-link.delete:hover {
-    background-color: #d32f2f;
-}
+        .btn-success:hover {
+            background-color: #45a049;
+        }
+
+        .btn-danger {
+            background-color: #f44336;
+        }
+
+        .btn-danger:hover {
+            background-color: #d32f2f;
+        }
     </style>
 </head>
 <body>
     <div class="dashboard-container">
         <div class="dashboard-header">
-            <?php if (!empty($userData['profile_picture'])): ?>
-                <img src="<?php echo htmlspecialchars($userData['profile_picture']); ?>" alt="Profile Picture" class="profile-picture">
-            <?php endif; ?>
+            <div class="profile-photos-container">
+                <?php if (!empty($userData['profile_photos'])): ?>
+                    <img src="<?php echo htmlspecialchars($userData['profile_photos'][0]); ?>" alt="Profile Picture" class="profile-photo">
+                    
+                    <?php if (count($userData['profile_photos']) > 1): ?>
+                        <div class="photo-gallery">
+                            <?php foreach (array_slice($userData['profile_photos'], 1) as $photo): ?>
+                                <img src="<?php echo htmlspecialchars($photo); ?>" alt="Profile Picture" class="gallery-photo">
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
             <div class="user-info">
                 <h2 class="dashboard-title">Welcome, <?php echo htmlspecialchars($userData['name']); ?>!</h2>
                 <p>Email: <?php echo htmlspecialchars($userData['email']); ?></p>
             </div>
         </div>
+
+        <?php if (!empty($userData['about_me'])): ?>
+        <div class="about-me-section">
+            <h3>About Me</h3>
+            <div><?php echo $userData['about_me']; ?></div>
+        </div>
+        <?php endif; ?>
 
         <div class="user-details">
             <div class="detail-card">
@@ -227,10 +315,11 @@ body {
             </div>
         </div>
 
-        <a href="logout.php" class="logout-btn">Logout</a>
-        <a href="edit.php?id=<?php echo $userData['id']; ?>" class="edit-link">Edit Profile</a>
-        <a href="delete.php?id=<?php echo $userData['id']; ?>" class="edit-link delete" onclick="return confirm('Are you sure you want to delete your account?');">Delete Account</a>
-        <a href="index.php" class="edit-link">Back to User List</a>
+        <div class="action-buttons">
+            <a href="logout.php" class="btn btn-primary">Logout</a>
+            <a href="edit.php?id=<?php echo $userData['id']; ?>" class="btn btn-success">Edit Profile</a>
+            <a href="delete.php?id=<?php echo $userData['id']; ?>" class="btn btn-danger" onclick="return confirm('Are you sure you want to delete your account?');">Delete Account</a>
+        </div>
     </div>
 </body>
 </html>
