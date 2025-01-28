@@ -286,5 +286,28 @@ class User {
         }
         return ['success' => false];
     }
+
+    public function search($searchTerm): mixed {
+        try {
+            $searchTerm = '%' . $searchTerm . '%';
+            $query = "SELECT id, name, email, phone, birthdate, age, gender, 
+                      interests, favorite_color, profile_photos, about_me,
+                      CASE WHEN is_active = true THEN 't' ELSE 'f' END AS is_active,
+                      blood_group, address, skills, deleted_profile_pictures
+                      FROM {$this->table_name}
+                      WHERE name ILIKE $1 
+                      OR email ILIKE $1 
+                      OR phone ILIKE $1 
+                      OR blood_group ILIKE $1 
+                      OR gender ILIKE $1
+                      OR interests ILIKE $1
+                      OR skills ILIKE $1";
+            
+            return pg_query_params($this->conn, $query, [$searchTerm]);
+        } catch (Exception $e) {
+            error_log("Search error: " . $e->getMessage());
+            return false;
+        }
+    }
 }
 ?>
