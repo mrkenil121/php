@@ -34,7 +34,7 @@ class User {
     }
 
     public function validateEmail($email) {
-        return filter_var($email, FILTER_VALIDATE_EMAIL);
+        return filter_var($email, filter: FILTER_VALIDATE_EMAIL);
     }
 
     public function validatePhone($phone) {

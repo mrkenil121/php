@@ -1,6 +1,15 @@
 <?php
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['user_email'])) {
+    header("Location: login.php");
+    exit();
+}
+
 require_once 'config/database.php';
 require_once 'class/User.php';
+
 
 $database = new Database();
 $db = $database->conn;
@@ -12,6 +21,13 @@ if (!isset($_GET['id'])) {
 }
 
 $id = intval($_GET['id']);
+
+// Authorization check
+if ($_SESSION['user_id'] != $id && $_SESSION['user_role'] !== 'admin') {
+    // User is not admin and trying to access someone else's data
+    header("Location: index.php?error=unauthorized");
+    exit();
+}
 
 // Fetch user details
 $userData = $user->readById($id);
